@@ -6,7 +6,7 @@ requires = [
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "daniel-garza-microbiome"
+name = "microbesGYM"
 description = "Kinetic modeling and reinforcement learning for microbial community dynamics"
 requires-python = ">=3.9"
 authors = [
@@ -54,7 +54,7 @@ extras = [
     "rich"
 ]
 all = [
-    "daniel-garza-microbiome[dev,extras]",
+    ".[dev,extras]",
 ]
 
 [project.scripts]
@@ -62,6 +62,7 @@ kinetic-model = "kinetic_model.cli:main"
 
 [tool.setuptools]
 package-dir = { "" = "src" }
+include-package-data = true
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -72,6 +73,6 @@ kinetic_model = ["py.typed"]
 rl = ["examples/configs/*.yaml", "docs/*.md"]
 
 [tool.setuptools.dynamic]
-version = { attr = "kinetic_model.__version__" }
+version = { file = "src/kinetic_model/_version.py" }
 
 
