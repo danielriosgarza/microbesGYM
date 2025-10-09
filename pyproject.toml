@@ -13,7 +13,7 @@ authors = [
     { name = "Daniel Rios Garza", email = "daniel.rios.garza@example.com" }
 ]
 readme = { file = "README.md", content-type = "text/markdown" }
-license = { text = "MIT" }
+license = "MIT"
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Science/Research",
@@ -84,6 +84,6 @@ kinetic_model = ["py.typed"]
 rl = ["examples/configs/*.yaml", "docs/*.md"]
 
 [tool.setuptools.dynamic]
-version = { file = "src/kinetic_model/_version.py" }
+version = { file = "VERSION" }
 
 

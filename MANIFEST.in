@@ -1,6 +1,7 @@
 # Include documentation files
 include README.md
 include pyproject.toml
+include VERSION
 
 # Include package data
 recursive-include src/kinetic_model *.py
