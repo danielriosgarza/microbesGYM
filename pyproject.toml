@@ -54,7 +54,18 @@ extras = [
     "rich"
 ]
 all = [
-    ".[dev,extras]",
+    # dev
+    "pytest>=7.0",
+    "black>=22.0",
+    "flake8>=5.0",
+    "mypy>=1.0",
+    # extras
+    "pyabc>=0.12",
+    "ipycytoscape>=0.2",
+    "torchdiffeq>=0.2",
+    "tensorboard>=2.20.0",
+    "tqdm>=4.67.1",
+    "rich"
 ]
 
 [project.scripts]
