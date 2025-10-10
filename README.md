@@ -1,8 +1,6 @@
----
-
 # MicrobesGYM
 
-**Model-based simulation and reinforcement learning framework for microbiome control**
+## Model-based simulation and reinforcement learning framework for microbiome control
 
 MicrobesGYM combines **kinetic modeling** and **reinforcement learning (RL)** to design, simulate, and train controllers for microbial ecosystems.
 It integrates dynamic biochemical modeling with data-driven control, enabling *in silico* experimentation and AI-driven discovery of control strategies.
@@ -37,17 +35,17 @@ Together, these modules provide a complete environment for developing adaptive c
 ## Installation
 
 ```bash
-git clone https://github.com/<your-username>/microbesGYM.git
+git clone https://github.com/danielriosgarza/microbesGYM.git
 cd microbesGYM
 pip install .
-```
+```bibtex
 
 Optional extras:
 
 ```bash
 pip install ".[extras]"   # tensorboard, tqdm, visualization
 pip install ".[all]"      # dev + extras
-```
+```bibtex
 
 Requires **Python ≥ 3.9**.
 
@@ -64,7 +62,7 @@ microbesGYM/
 │  └─ rl/                  # reinforcement learning framework
 ├─ trained_models/         # example RL checkpoints
 └─ pyproject.toml
-```
+```bibtex
 
 ---
 
@@ -85,7 +83,7 @@ reactor = Reactor(microbiome, metabolome, pulses=[pulse], volume=1.0)
 reactor.set_balanced_simulation_mode()
 reactor.simulate()
 reactor.make_plot()
-```
+```bibtex
 
 Or load a predefined model:
 
@@ -181,12 +179,12 @@ Supports SAC, PPO (and TQC via `sb3-contrib`), TensorBoard logging, checkpointin
 
 If you use **MicrobesGYM** in your research, please cite the GitHub repository:
 
-```
+```bibtex
 @misc{MicrobesGYM2025,
   author       = {Rios Garza, Daniel},
   title        = {MicrobesGYM: Kinetic Modeling and Reinforcement Learning Framework for Microbiome Control},
   year         = {2025},
-  howpublished = {\url{https://github.com/<your-username>/microbesGYM}},
+  howpublished = {\url{https://github.com/danielriosgarza/microbesGYM}},
   note         = {Accessed October 2025}
 }
 ```
@@ -203,12 +201,12 @@ Add minimal tests for new features, and keep code typed and readable.
 
 ---
 
-## License
-
-MIT License © 2025 [Daniel Rios Garza](https://github.com/<your-username>)
-
-
 ## Frontend
-A `React` app will soon be lauched and announced here. Checkout our poster.
+
+A `React` app will soon be launched and announced here. Check out our [poster](https://github.com/danielriosgarza/microbesGYM/blob/main/poster/microbeGym.pdf).
+
 ---
 
+## License
+
+MIT License © 2025 [Daniel Rios Garza](https://github.com/danielriosgarza)
