@@ -1,70 +1,68 @@
-# microbesGYM
+---
 
-Kinetic modeling and reinforcement learning to build and train microbiome controllers.
+# MicrobesGYM
 
-microbesGYM brings together two complementary parts:
+**Model-based simulation and reinforcement learning framework for microbiome control**
 
-- `kinetic_model`: a simulation engine to design microbiome/metabolome systems and run pulse-based bioreactor experiments with pH, temperature, and stirring effects. It supports fast, balanced, and accurate integration modes and interactive visualizations.
-- `rl`: a configurable, model‑agnostic RL framework that wraps a kinetic model as a Gymnasium environment, so you can define targets, observations, rewards, and actions via a single YAML/JSON config, then train/evaluate agents with SB3.
+MicrobesGYM combines **kinetic modeling** and **reinforcement learning (RL)** to design, simulate, and train controllers for microbial ecosystems.
+It integrates dynamic biochemical modeling with data-driven control, enabling *in silico* experimentation and AI-driven discovery of control strategies.
 
-## Highlights
+---
 
-- **Config‑driven RL**: define actions, observations, rewards, and episode settings in one file.
-- **Model‑agnostic**: plug any compatible kinetic model JSON export into the RL environment.
-- **Expression‑based features**: safe expressions for observations and rewards.
-- **Performance controls**: fast/balanced/accurate simulation modes, step reduction, and optimized ODE settings.
-- **Nice plots**: quick interactive Plotly figures from kinetic simulations.
+## Overview
+
+MicrobesGYM consists of two complementary components:
+
+* **`kinetic_model`** — a fast and flexible simulation engine for microbiome–metabolome systems.
+  It supports pulse-based bioreactor experiments with environmental factors such as pH, temperature, and stirring, offering *fast*, *balanced*, and *accurate* integration modes with interactive visualization.
+
+* **`rl`** — a configurable, model-agnostic reinforcement learning framework that wraps any kinetic model as a Gymnasium environment.
+  Targets, observations, rewards, and actions are defined through a single YAML/JSON configuration, and agents are trained via **Stable-Baselines3 (SB3)**.
+
+Together, these modules provide a complete environment for developing adaptive control strategies for microbiomes, from simulation to RL training.
+
+---
+
+## Key Features
+
+* **Config-driven RL design** — define all aspects (actions, observations, rewards, and episode settings) in one declarative file.
+* **Model-agnostic interface** — plug in any compatible kinetic model JSON without code modification.
+* **Safe expression-based rewards** — flexible reward definitions through parsed mathematical expressions.
+* **Performance control** — choose between *fast*, *balanced*, and *accurate* simulation modes.
+* **Visualization tools** — interactive Plotly plots and analysis utilities for model outputs.
+* **Reproducible workflows** — consistent YAML-based configuration and environment management.
 
 ---
 
 ## Installation
 
-From your terminal or notebook:
-
 ```bash
-git clone <this-repo-url>
+git clone https://github.com/<your-username>/microbesGYM.git
 cd microbesGYM
-pip install .  # or: uv pip install .
+pip install .
 ```
 
-Verify the install and version:
+Optional extras:
 
 ```bash
-python -c "import kinetic_model as km; print(km.__version__)"
+pip install ".[extras]"   # tensorboard, tqdm, visualization
+pip install ".[all]"      # dev + extras
 ```
 
-Optional extras (tensorboard, progress bars, visualization, etc.):
-
-```bash
-pip install ".[extras]"    # focused extras
-pip install ".[all]"       # dev + extras
-```
-
-Python >= 3.9 is required.
+Requires **Python ≥ 3.9**.
 
 ---
 
-## Repository layout
+## Project Structure
 
 ```text
 microbesGYM/
-├─ modelTemplates/               # ready-to-use kinetic model JSONs
-├─ notebooks/                    # quick demos and tutorials
+├─ modelTemplates/         # ready-to-use kinetic model JSONs
+├─ notebooks/              # demos and tutorials
 ├─ src/
-│  ├─ kinetic_model/             # simulation engine
-│  │   ├─ reactor.py             # Reactor/Pulse + ODE integration, plotting
-│  │   ├─ bacteria.py, microbiome.py, metabolome.py, ...
-│  │   └─ model_from_json.py     # load model from JSON
-│  └─ rl/                        # reinforcement learning framework
-│      ├─ env.py                 # GeneralMicrobiomeEnv (Gymnasium)
-│      ├─ config.py              # `TopLevelConfig` (Pydantic)
-│      ├─ model_adapter.py       # bridge kinetic model ⇄ env
-│      ├─ wrappers.py            # observation pipeline, normalization, etc.
-│      ├─ cli/                   # train/evaluate entry points
-│      ├─ docs/                  # RL docs
-│      └─ examples/configs/      # ready configs (butyrate, acetate, etc.)
-├─ trained_models/               # example checkpoints
-├─ VERSION
+│  ├─ kinetic_model/       # simulation engine
+│  └─ rl/                  # reinforcement learning framework
+├─ trained_models/         # example RL checkpoints
 └─ pyproject.toml
 ```
 
@@ -72,42 +70,33 @@ microbesGYM/
 
 ## Quickstart
 
-### 1) Kinetic simulation in a few lines
+### 1. Simulate a microbiome system
 
 ```python
-from kinetic_model import (
-    Metabolite, Metabolome, Microbiome,
-    Environment, pH, Temperature, Stirring,
-    Pulse, Reactor,
-)
+from kinetic_model import Metabolite, Metabolome, Microbiome, Environment, pH, Temperature, Stirring, Pulse, Reactor
 
-# Minimal metabolome and microbiome
-glucose = Metabolite("glucose", 10.0, {"C": 6, "H": 12, "O": 6}, "#ff0000")
+glucose = Metabolite("glucose", 10.0, {"C":6,"H":12,"O":6}, "#ff0000")
 metabolome = Metabolome([glucose])
 microbiome = Microbiome(name="demo", bacteria={})
-
-# Constant environment
 env = Environment(pH(metabolome, intercept=7.0), Stirring(rate=0.9), Temperature(37.0))
 
-# One pulse, then simulate
 pulse = Pulse(t_start=0.0, t_end=10.0, n_steps=100, environment=env)
 reactor = Reactor(microbiome, metabolome, pulses=[pulse], volume=1.0)
-reactor.set_balanced_simulation_mode()  # fast|balanced|accurate controls
+reactor.set_balanced_simulation_mode()
 reactor.simulate()
-fig = reactor.make_plot()  # interactive Plotly figure
+reactor.make_plot()
 ```
 
-You can also load a full model from JSON:
+Or load a predefined model:
 
 ```python
 from kinetic_model import ModelFromJson
 model = ModelFromJson("modelTemplates/bh_bt_ri_complete_model_export.json")
-# Access: model.metabolome, model.microbiome
 ```
 
-### 2) Train a controller (RL)
+---
 
-Use a provided config and a model JSON to train with SAC/PPO:
+### 2. Train a controller with RL
 
 ```bash
 python -m rl.cli.train_agent \
@@ -121,7 +110,7 @@ python -m rl.cli.train_agent \
   --model-path models/mg_rl_general_sac
 ```
 
-Evaluate a trained model (deterministic actions, accurate mode):
+Evaluate the trained agent:
 
 ```bash
 python -m rl.cli.evaluate \
@@ -131,102 +120,95 @@ python -m rl.cli.evaluate \
   --model-path models/mg_rl_general_sac.zip
 ```
 
-The evaluation automatically loads observation normalization stats if available
-(`*_normalization_stats.json`).
+Evaluation automatically loads normalization statistics (if available).
 
 ---
 
-## RL configuration model
+## RL Configuration Schema
 
-All RL behavior is captured by `TopLevelConfig` (`src/rl/config.py`) and can be written as YAML/JSON.
-Below is a compact YAML example showing the main sections you’ll likely tweak:
+RL behavior is governed by `TopLevelConfig` (`src/rl/config.py`), expressed in YAML or JSON.
+Below is a compact example:
 
 ```yaml
 episode:
   horizon: 250
   dt_hours: 1.0
-  training_mode: balanced   # fast|balanced|accurate
+  training_mode: balanced
 simulation:
   min_steps_per_pulse: 10
   steps_per_hour_factor: 50
 actions:
-  pH_mode: switchable       # controlled|emergent|switchable
   actuators:
-    - { name: q,       type: continuous }
-    - { name: v,       type: continuous }
-    - { name: pH_ctrl, type: binary }
-    - { name: pH_set,  type: continuous }
-    - { name: stir,    type: continuous }
-    - { name: temp,    type: continuous }
-  bounds:
-    q: [0.0, 0.5]
-    v: [0.0, 0.2]
-    pH_set: [5.8, 7.8]
-    stir: [0.0, 1.0]
-    temp: [25.0, 45.0]
+    - { name: q, type: continuous }
+    - { name: temp, type: continuous }
 observations:
-  include: ["met.all", "pH.used", "actuator_echo.all", "met.delta.all", "met.rate.all"]
+  include: ["met.all", "pH.used"]
   pipeline:
     - { normalize: { method: running_mean_var } }
-    - { clip: { min: -10, max: 10 } }
 rewards:
-  error_reward: -1000.0
   terms:
     - { expr: delta_target, weight: 200.0, deadband: 0.02 }
-    - { expr: action_q * dt_hours, weight: -0.02 }
-    - { expr: action_v, weight: -0.03 }
-    - { expr: abs(action_temp - 37), weight: -0.02 }
-    - { expr: action_stir, weight: -0.01 }
-  terminal:
-    - { when: last_step, expr: max(0, delta_target), weight: 15.0 }
 target:
   type: metabolite
   name: butyrate
   use_delta: true
 ```
 
-See `src/rl/docs/DOCUMENTATION.md` for a deeper dive into actions, observations, rewards,
-and the environment’s action/observation spaces.
+See detailed documentation in `src/rl/docs/DOCUMENTATION.md`.
 
 ---
 
-## Notebooks and examples
+## Examples and Notebooks
 
-- `notebooks/kinetic_model.ipynb`: build and simulate microbiomes.
-- `notebooks/controller_simulation_demo.ipynb`: end-to-end controller demo.
-- `src/rl/examples/configs/`: ready-to-run RL configs (`butyrate`, `acetate`, `succinate`, `kombucha`, etc.).
-- `modelTemplates/`: curated kinetic model JSONs used by examples.
+* **`notebooks/kinetic_model.ipynb`** — microbiome modeling and simulation
+* **`notebooks/controller_simulation_demo.ipynb`** — RL-based control demo
+* **`src/rl/examples/configs/`** — pre-tuned control configs (butyrate, acetate, succinate, kombucha, etc.)
+* **`modelTemplates/`** — curated kinetic models for simulations
 
 ---
 
-## Command-line reference
+## Command Line Interface
 
-- `python -m rl.cli.train_agent --help`
-- `python -m rl.cli.evaluate --help`
-- `python -m kinetic_model.cli` (prints basic info)
+* `python -m rl.cli.train_agent --help`
+* `python -m rl.cli.evaluate --help`
+* `python -m kinetic_model.cli`
 
-The training script supports SAC, PPO (and optionally TQC if `sb3-contrib` is installed),
-TensorBoard logging, normalization sync between train/eval envs, evaluation breakdown logging,
-checkpointing with normalization stats, and simple LR/entropy schedules.
+Supports SAC, PPO (and TQC via `sb3-contrib`), TensorBoard logging, checkpointing, and normalization syncing between environments.
 
 ---
 
 ## Citation
 
-If you use microbesGYM in academic work, please cite this repository. A BibTeX entry will be added once a preprint is available.
+If you use **MicrobesGYM** in your research, please cite the GitHub repository:
+
+```
+@misc{MicrobesGYM2025,
+  author       = {Rios Garza, Daniel},
+  title        = {MicrobesGYM: Kinetic Modeling and Reinforcement Learning Framework for Microbiome Control},
+  year         = {2025},
+  howpublished = {\url{https://github.com/<your-username>/microbesGYM}},
+  note         = {Accessed October 2025}
+}
+```
+
+A formal BibTeX entry will be updated once a preprint is available.
 
 ---
 
 ## Contributing
 
-Issues and PRs are welcome. Please:
-
-- open a descriptive issue first if proposing a larger feature,
-- add or update minimal tests if you contribute functionality,
-- keep code readable and typed where possible.
+Contributions are welcome!
+For major changes, please open an issue first to discuss your proposal.
+Add minimal tests for new features, and keep code typed and readable.
 
 ---
 
 ## License
 
-MIT License © 2025 Daniel Rios Garza
+MIT License © 2025 [Daniel Rios Garza](https://github.com/<your-username>)
+
+
+## Frontend
+A `React` app will soon be lauched and announced here. Checkout our poster.
+---
+
