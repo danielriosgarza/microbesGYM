@@ -203,7 +203,8 @@ Add minimal tests for new features, and keep code typed and readable.
 
 ## UI
 
-A React + Vite UI lives in `ui/` and talks to the FastAPI backend under `/api`.
+A React + Vite UI lives in `ui/` and talks to the FastAPI app (`mg_api`) at `http://localhost:8000`.
+API routes use the base path `/api` (e.g., `/api/metabolomes`), while the healthcheck is at `/health`.
 See our project poster for a high-level overview: [poster/microbeGym.pdf](https://github.com/danielriosgarza/microbesGYM/blob/main/poster/microbeGym.pdf).
 
 ### Developer mode (quick test)
@@ -229,30 +230,6 @@ What it does:
 - Starts the UI on `http://localhost:5173`
 
 Open `http://localhost:5173` in your browser. The UI uses `/api/...` to reach the backend.
-
-If you prefer running processes separately:
-
-```bash
-# Terminal A (repo root)
-uvx --with fastapi,pydantic,numpy,scipy,plotly,pandas \
-  uvicorn --app-dir src --reload-dir src mg_api.main:app --reload --port 8000
-
-# Terminal B (repo root → ui/)
-cd ui && npm run dev
-```
-
-Tip: You can point the UI at a different backend by setting `VITE_API_BASE` in `ui/.env.local`.
-
-### Production build
-
-```bash
-cd ui
-npm run build
-```
-
-Serve the contents of `ui/dist` with any static server or host (or mount it in FastAPI if you prefer a single service).
-
----
 
 ## License
 
