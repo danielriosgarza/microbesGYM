@@ -38,14 +38,14 @@ Together, these modules provide a complete environment for developing adaptive c
 git clone https://github.com/danielriosgarza/microbesGYM.git
 cd microbesGYM
 pip install .
-```bibtex
+```
 
 Optional extras:
 
 ```bash
 pip install ".[extras]"   # tensorboard, tqdm, visualization
 pip install ".[all]"      # dev + extras
-```bibtex
+```
 
 Requires **Python ≥ 3.9**.
 
@@ -62,7 +62,7 @@ microbesGYM/
 │  └─ rl/                  # reinforcement learning framework
 ├─ trained_models/         # example RL checkpoints
 └─ pyproject.toml
-```bibtex
+```
 
 ---
 
@@ -83,7 +83,7 @@ reactor = Reactor(microbiome, metabolome, pulses=[pulse], volume=1.0)
 reactor.set_balanced_simulation_mode()
 reactor.simulate()
 reactor.make_plot()
-```bibtex
+```
 
 Or load a predefined model:
 
