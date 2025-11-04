@@ -19,11 +19,11 @@ class PresetListItem(BaseModel):
 
 
 def _examples_dir() -> Path:
-    # backend/src/mg_api/routers/presets.py → backend/examples
+    # backend/src/mg_api/routers/presets.py → repo root / modelTemplates
     here = Path(__file__).resolve()
-    backend_dir = here.parents[3]
-    examples = backend_dir / "examples"
-    return examples
+    repo_root = here.parents[3]
+    templates = repo_root / "modelTemplates"
+    return templates
 
 
 def _load_json(path: Path) -> dict[str, Any]:

@@ -12,6 +12,9 @@ from .schemas import (
     PHFunctionCreate,
     PHFunctionOut,
     PHFunctionDetail,
+    PHDraftCreate,
+    PHDraftOut,
+    PHDraftDetail,
     EnvironmentCreate,
     EnvironmentOut,
     EnvironmentDetail,
@@ -52,6 +55,7 @@ class InMemoryStore:
         self._lock = threading.Lock()
         self._metabolites: Dict[str, MetaboliteOut] = {}
         self._metabolomes: Dict[str, Dict[str, Any]] = {}
+        self._ph_drafts: Dict[str, Dict[str, Any]] = {}
         self._ph_functions: Dict[str, Dict[str, Any]] = {}
         self._environments: Dict[str, Dict[str, Any]] = {}
         self._pulses: Dict[str, Dict[str, Any]] = {}
@@ -180,6 +184,45 @@ class InMemoryStore:
             return MetabolomeOut(id=metabolome_id, name=name, n_metabolites=len(m))
 
     # ---------------- pH Functions ---------------- #
+    # pH Drafts (metabolome-agnostic)
+    def list_ph_drafts(self) -> List[PHDraftOut]:
+        with self._lock:
+            out: List[PHDraftOut] = []
+            for did, rec in self._ph_drafts.items():
+                out.append(PHDraftOut(id=did, name=rec["name"], baseValue=rec["baseValue"], n_weights=len(rec.get("weights", {}))))
+            return out
+
+    def get_ph_draft_detail(self, draft_id: str) -> PHDraftDetail:
+        with self._lock:
+            rec = self._ph_drafts.get(draft_id)
+            if not rec:
+                raise KeyError("ph draft not found")
+            return PHDraftDetail(id=draft_id, name=rec["name"], baseValue=rec["baseValue"], weights=rec.get("weights", {}))
+
+    def create_ph_draft(self, payload: PHDraftCreate) -> PHDraftOut:
+        with self._lock:
+            base = max(0.0, min(14.0, float(payload.baseValue)))
+            weights = {str(k): float(v) for k, v in (payload.weights or {}).items()}
+            did = uuid.uuid4().hex
+            self._ph_drafts[did] = {
+                "name": payload.name,
+                "baseValue": base,
+                "weights": weights,
+            }
+            return PHDraftOut(id=did, name=payload.name, baseValue=base, n_weights=len(weights))
+
+    def rename_ph_draft(self, draft_id: str, name: str) -> PHDraftOut:
+        with self._lock:
+            rec = self._ph_drafts.get(draft_id)
+            if not rec:
+                raise KeyError("ph draft not found")
+            rec["name"] = name
+            return PHDraftOut(id=draft_id, name=name, baseValue=rec["baseValue"], n_weights=len(rec.get("weights", {})))
+
+    def delete_ph_draft(self, draft_id: str) -> bool:
+        with self._lock:
+            return self._ph_drafts.pop(draft_id, None) is not None
+
     def _get_metabolome_rec(self, metabolome_id: str) -> Dict[str, Any]:
         rec = self._metabolomes.get(metabolome_id)
         if not rec:

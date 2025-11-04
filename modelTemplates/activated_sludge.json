@@ -1,7 +1,7 @@
 {
   "version": "1.0.0",
   "metadata": {
-    "name": "Activated Sludge (Boolean/Simple)",
+    "name": "Activated Sludge",
     "description": "OHOs, denitrifiers, AOB, NOB, PAO/GAO, anammox, filament. Boolean transitions; loader-safe feeding terms.",
     "author": "MicrobiomeGym Team",
     "created": "2025-09-07T19:23:52Z",

@@ -13,6 +13,7 @@ import {
 import { listMetabolomes, deleteMetabolome } from "../lib/metabolomes";
 import { listMicrobiomes, deleteMicrobiome } from "../lib/microbiomes";
 import { listPHFunctions, deletePHFunction } from "../lib/ph";
+import { createPHDraft, listPHDrafts, deletePHDraft } from "../lib/ph_drafts";
 import { listEnvironments, deleteEnvironment } from "../lib/env";
 import { listPulses, deletePulse } from "../lib/pulses";
 import { listTimelines, deleteTimeline } from "../lib/timelines";
@@ -342,7 +343,7 @@ export function Build() {
     if (!ok) return;
     setNuking(true);
     try {
-      const [micros, bac, sims, tls, pulses, envs, phs, metasomes, mets] = await Promise.all([
+      const [micros, bac, sims, tls, pulses, envs, phs, phDrafts, metasomes, mets] = await Promise.all([
         listMicrobiomes().catch(() => []),
         listBacteria().catch(() => []),
         listSimulations().catch(() => []),
@@ -350,6 +351,7 @@ export function Build() {
         listPulses().catch(() => []),
         listEnvironments().catch(() => []),
         listPHFunctions().catch(() => []),
+        listPHDrafts().catch(() => []),
         listMetabolomes().catch(() => []),
         listMetabolites().catch(() => []),
       ]);
@@ -361,6 +363,7 @@ export function Build() {
       await Promise.allSettled(pulses.map((p) => deletePulse(p.id)));
       await Promise.allSettled(envs.map((e) => deleteEnvironment(e.id)));
       await Promise.allSettled(phs.map((f) => deletePHFunction(f.id)));
+      await Promise.allSettled(phDrafts.map((d: any) => deletePHDraft(d.id)));
       await Promise.allSettled(metasomes.map((m) => deleteMetabolome(m.id)));
       await Promise.allSettled(mets.map((m) => deleteMetabolite(m.id)));
 
@@ -503,18 +506,20 @@ export function Build() {
           const ftId = `ft-${spec.species}-${sp.name}-${j}`;
           const metDict = ft.metDict || {};
           feedingTermsLocal[ftId] = { name: String(ft.id || 'feeding'), inputs: {}, outputs: {} } as any;
+          const ftLoc = feedingTermsLocal[ftId]!;
           // Inputs: yield>0 with K>0; outputs: K==0
           Object.entries(metDict).forEach(([met, arr]) => {
             const y = Number(Array.isArray(arr) ? arr[0] : 0) || 0;
             const K = Number(Array.isArray(arr) ? arr[1] : 0) || 0;
             const metId = idByMetName.get(met) || `m-${met}`;
             if (K > 0) {
-              feedingTermsLocal[ftId].inputs[metId] = { yield: y, monodK: K };
+              ftLoc.inputs[metId] = { yield: y, monodK: K };
             } else {
-              feedingTermsLocal[ftId].outputs[metId] = { yield: Math.abs(y) };
+              ftLoc.outputs[metId] = { yield: Math.abs(y) };
             }
           });
-          rfList.push({ id: ftId, type: 'feedingTermNode', position: { x: feedTermColumnX, y: (160 + (subpopRow-1) * 120) }, data: { name: String(ft.id || 'feeding'), inputs: Object.keys(feedingTermsLocal[ftId].inputs).length, outputs: Object.keys(feedingTermsLocal[ftId].outputs).length } } as any);
+          const ftRec = feedingTermsLocal[ftId]!;
+          rfList.push({ id: ftId, type: 'feedingTermNode', position: { x: feedTermColumnX, y: (160 + (subpopRow-1) * 120) }, data: { name: String(ft.id || 'feeding'), inputs: Object.keys(ftRec.inputs).length, outputs: Object.keys(ftRec.outputs).length } } as any);
           // Edges are tracked outside; inspector will show counts
         });
       });
@@ -526,9 +531,9 @@ export function Build() {
       });
 
       // Transitions: create a transition node per pair and place in column
-      const conns = spec.connections || {} as Record<string, Array<any>>;
-      Object.entries(conns).forEach(([src, list]) => {
-        (list || []).forEach((tr: any, k: number) => {
+      const conns = (spec.connections || {}) as Record<string, any[]>;
+      Object.entries(conns).forEach(([src, lst]: [string, any[]]) => {
+        (lst || []).forEach((tr: any, k: number) => {
           const [tgt, condition, rate] = tr;
           const tnId = `tr-${spec.species}-${src}-${k}`;
           rfList.push({ id: tnId, type: 'transitionNode', position: { x: transitionColumnX, y: 200 + (subpopRow + k) * 80 }, data: { rate: Number(rate||0), condition: String(condition||'') } } as any);
@@ -858,7 +863,7 @@ export function Build() {
       setPh((prev) => {
         if (!prev) return prev;
         if (Object.prototype.hasOwnProperty.call(prev.weights, prevName)) {
-          const w = prev.weights[prevName];
+          const w = Number(prev.weights[prevName]);
           const nextW = { ...prev.weights } as Record<string, number>;
           delete nextW[prevName];
           nextW[patch.name as string] = w;
@@ -994,6 +999,34 @@ export function Build() {
               disabled={savingMets}
             >
               {savingMets ? 'Saving molecules...' : 'Save molecules'}
+            </button>
+            <button
+              className="btn primary"
+              onClick={async () => {
+                if (!ph) { alert('No pH node to save'); return; }
+                const name = prompt('Name for this pH draft?', 'pH Draft');
+                if (!name) return;
+                try {
+                  const weights: Record<string, number> = {};
+                  Object.entries(ph.weights || {}).forEach(([k, v]) => {
+                    const f = Number(v);
+                    if (Number.isFinite(f)) weights[k] = f;
+                  });
+                  const base = Math.max(0, Math.min(14, Number(ph.baseValue)));
+                  await createPHDraft({ name, baseValue: base, weights });
+                  try { window.dispatchEvent(new CustomEvent('ph:draftSaved')); } catch {}
+                  alert('Saved pH draft');
+                } catch (e) {
+                  console.error(e);
+                  alert('Failed to save pH draft');
+                }
+              }}
+              type="button"
+              title="Save pH as draft (metabolome-agnostic)"
+              disabled={!ph || !(Number.isFinite(ph.baseValue) && ph.baseValue >= 0 && ph.baseValue <= 14)}
+              style={{ marginLeft: 8 }}
+            >
+              Save pH
             </button>
             <button
               className="btn primary"

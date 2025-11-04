@@ -4,6 +4,7 @@ import CytoscapeComponent from "react-cytoscapejs";
 import { listMetabolites, type MetaboliteOut } from "../lib/metabolites";
 import { createMetabolome, listMetabolomes, deleteMetabolome, updateMetabolomeName, type MetabolomeOut as MetabolomeOutT } from "../lib/metabolomes";
 import { listPHFunctions, createPHFunction, renamePHFunction, deletePHFunction, type PHFunctionOut } from "../lib/ph";
+import { listPHDrafts, getPHDraft, deletePHDraft, type PHDraftOut } from "../lib/ph_drafts";
 import { listEnvironments, createEnvironment, renameEnvironment, deleteEnvironment, type EnvironmentOut } from "../lib/env";
 import { listPulses, createPulse, renamePulse, deletePulse, type PulseOut } from "../lib/pulses";
 import { getCytoscape } from "../lib/viz";
@@ -25,7 +26,7 @@ export function Simulation() {
   const [creating, setCreating] = React.useState(false);
   const [createError, setCreateError] = React.useState<string | null>(null);
   const [createSuccess, setCreateSuccess] = React.useState<string | null>(null);
-  const [phDrafts, setPhDrafts] = React.useState<Array<{ id: string; name: string; baseValue: number; weights: Record<string, number>; metabolome_id?: string }>>([]);
+  const [phDrafts, setPhDrafts] = React.useState<Array<PHDraftOut & { metabolome_id?: string }>>([]);
   const [phFuncs, setPhFuncs] = React.useState<PHFunctionOut[]>([]);
   const [savingPhId, setSavingPhId] = React.useState<string | null>(null);
   const [envDrafts, setEnvDrafts] = React.useState<Array<{ id: string; name: string; ph_function_id?: string; temperature: number; stirring_rate: number; stirring_base_std: number }>>([]);
@@ -302,31 +303,28 @@ export function Simulation() {
     return () => clearInterval(interval);
   }, [refreshBacteria]);
 
-  // Load pH drafts from localStorage and keep in sync
-  const loadDrafts = React.useCallback(() => {
+  // Load pH drafts from backend
+  const loadDrafts = React.useCallback(async () => {
     try {
-      const raw = localStorage.getItem('mg-build-ph-drafts');
-      const arr = raw ? (JSON.parse(raw) as any[]) : [];
-      const mapped = arr.map((d) => ({ id: d.id, name: d.name || '', baseValue: Number(d.baseValue) || 7, weights: d.weights || {}, metabolome_id: d.metabolome_id }));
-      setPhDrafts(mapped);
+      const list = await listPHDrafts();
+      setPhDrafts(list);
     } catch { setPhDrafts([]); }
   }, []);
 
   React.useEffect(() => {
-    loadDrafts();
-    const onDraft = () => loadDrafts();
+    void loadDrafts();
+    const onDraft = () => { void loadDrafts(); };
     window.addEventListener('ph:draftSaved', onDraft);
-    window.addEventListener('storage', onDraft);
-    return () => {
-      window.removeEventListener('ph:draftSaved', onDraft);
-      window.removeEventListener('storage', onDraft);
-    };
+    return () => { window.removeEventListener('ph:draftSaved', onDraft); };
   }, [loadDrafts]);
 
   // Respond to global data reset (e.g., Build tab "Delete all")
   React.useEffect(() => {
     const onReset = async () => {
       try {
+        // Hide any currently shown Cytoscape graph and clear errors
+        setCySpec(null);
+        setError(null);
         const [funcs, envList, pulseList] = await Promise.all([
           listPHFunctions().catch(() => []),
           listEnvironments().catch(() => []),
@@ -335,16 +333,20 @@ export function Simulation() {
         setPhFuncs(funcs);
         setEnvs(envList);
         setPulses(pulseList);
-        // Also refresh metabolomes to reflect removals
+        // Also refresh metabolomes and backend timelines to reflect removals
         void refreshMetabolomes();
+        void refreshBackendTimelines();
         // Clear local drafts/snapshots
         try { setTimelines([]); } catch {}
         try { loadDrafts(); } catch {}
       } catch {
+        setCySpec(null);
+        setError(null);
         setPhFuncs([]);
         setEnvs([]);
         setPulses([]);
         void refreshMetabolomes();
+        void refreshBackendTimelines();
         try { setTimelines([]); } catch {}
         try { loadDrafts(); } catch {}
       }
@@ -483,20 +485,6 @@ export function Simulation() {
         <div className="row space-between center">
           <ApiStatus />
           <div className="muted">{count > 0 ? `Valid model with ${count} metabolite${count>1?'s':''}` : "No saved metabolites"}</div>
-          <button
-            className="btn primary"
-            onClick={() => {
-              if (cySpec) {
-                setCySpec(null);
-                setError(null);
-              } else {
-                void handleInspect();
-              }
-            }}
-            disabled={loading}
-          >
-            {loading ? "Inspecting..." : (cySpec ? "Hide" : "Inspect")}
-          </button>
         </div>
       </div>
 
@@ -705,6 +693,20 @@ export function Simulation() {
                   <span className="muted">{m.n_metabolites} metabolites</span>
                   <div style={{ flex: 1 }} />
                   <button
+                    className="btn primary"
+                    onClick={async () => {
+                      try {
+                        const spec = await getCytoscape(undefined, { metabolome_id: m.id });
+                        setCySpec(spec);
+                        setError(null);
+                      } catch {
+                        alert('Failed to inspect');
+                      }
+                    }}
+                  >
+                    Inspect
+                  </button>
+                  <button
                     className="btn"
                     disabled={!dirty || !current.trim() || savingId === m.id}
                     onClick={async () => {
@@ -846,34 +848,13 @@ export function Simulation() {
           {phDrafts.map((d) => (
             <div key={d.id} className="row" style={{ gap: 8, alignItems: 'center', marginTop: 6 }}>
               <span aria-label="unsaved" title="Unsaved draft" style={{ width: 8, height: 8, borderRadius: 999, background: '#f87171', display: 'inline-block' }} />
-              <input
-                className="input"
-                placeholder="Function name"
-                value={d.name}
-                onChange={(e) => {
-                  const name = e.target.value;
-                  setPhDrafts((prev) => prev.map((x) => x.id === d.id ? { ...x, name } : x));
-                  try {
-                    const raw = localStorage.getItem('mg-build-ph-drafts');
-                    const arr = raw ? JSON.parse(raw) as any[] : [];
-                    const next = arr.map((x: any) => x.id === d.id ? { ...x, name } : x);
-                    localStorage.setItem('mg-build-ph-drafts', JSON.stringify(next));
-                  } catch {}
-                }}
-                style={{ maxWidth: 260 }}
-              />
+              <span className="chip" style={{ minWidth: 0 }}>{d.name}</span>
               <select
                 className="input"
                 value={d.metabolome_id || ''}
                 onChange={(e) => {
                   const metabolome_id = e.target.value || undefined;
                   setPhDrafts((prev) => prev.map((x) => x.id === d.id ? { ...x, metabolome_id } : x));
-                  try {
-                    const raw = localStorage.getItem('mg-build-ph-drafts');
-                    const arr = raw ? JSON.parse(raw) as any[] : [];
-                    const next = arr.map((x: any) => x.id === d.id ? { ...x, metabolome_id } : x);
-                    localStorage.setItem('mg-build-ph-drafts', JSON.stringify(next));
-                  } catch {}
                 }}
                 style={{ minWidth: 220 }}
               >
@@ -889,16 +870,12 @@ export function Simulation() {
                   if (!d.metabolome_id) return;
                   try {
                     setSavingPhId(d.id);
-                    const payload = { name: (d.name || `ph-${new Date().toISOString().slice(0,10)}`), metabolome_id: d.metabolome_id, baseValue: d.baseValue, weights: d.weights };
+                    const detail = await getPHDraft(d.id);
+                    const payload = { name: (d.name || `ph-${new Date().toISOString().slice(0,10)}`), metabolome_id: d.metabolome_id, baseValue: detail.baseValue, weights: detail.weights };
                     const saved = await createPHFunction(payload);
                     setPhFuncs((prev) => [saved, ...prev]);
-                    try {
-                      const raw = localStorage.getItem('mg-build-ph-drafts');
-                      const arr = raw ? JSON.parse(raw) as any[] : [];
-                      const next = arr.filter((x: any) => x.id !== d.id);
-                      localStorage.setItem('mg-build-ph-drafts', JSON.stringify(next));
-                    } catch {}
-                    setPhDrafts((prev) => prev.filter((x) => x.id !== d.id));
+                    await deletePHDraft(d.id).catch(() => {});
+                    await loadDrafts();
                   } catch {
                     alert('Failed to save pH function');
                   } finally { setSavingPhId(null); }
@@ -909,12 +886,7 @@ export function Simulation() {
               <button
                 className="btn"
                 onClick={() => {
-                  try {
-                    const raw = localStorage.getItem('mg-build-ph-drafts');
-                    const arr = raw ? JSON.parse(raw) as any[] : [];
-                    const next = arr.filter((x: any) => x.id !== d.id);
-                    localStorage.setItem('mg-build-ph-drafts', JSON.stringify(next));
-                  } catch {}
+                  deletePHDraft(d.id).catch(() => {});
                   setPhDrafts((prev) => prev.filter((x) => x.id !== d.id));
                 }}
               >
@@ -1235,36 +1207,19 @@ export function Simulation() {
           </div>
         </details>
 
-        {/* Saved timelines list */}
+        {/* Saved timelines (from backend) */}
         <details style={{ marginTop: 12 }}>
-          <summary className="muted" style={{ cursor: 'pointer' }}>Saved timelines ({timelines.length})</summary>
+          <summary className="muted" style={{ cursor: 'pointer' }}>Saved timelines ({backendTimelines.length})</summary>
           <div style={{ marginTop: 8, display: 'grid', gap: 6 }}>
-            <div className="row" style={{ justifyContent: 'flex-end' }}>
-              <button
-                className="btn"
-                disabled={timelines.length === 0}
-                onClick={() => {
-                  if (timelines.length === 0) return;
-                  const ok = window.confirm('Delete all saved timelines?');
-                  if (!ok) return;
-                  try { localStorage.removeItem('mg-sim-timelines'); } catch {}
-                  setTimelines([]);
-                }}
-              >
-                Delete all
-              </button>
-            </div>
-            {timelines.length === 0 ? (
+            {backendTimelines.length === 0 ? (
               <div className="muted">No saved timelines yet.</div>
             ) : (
-              timelines.map((t) => (
+              backendTimelines.map((t) => (
                 <div key={t.id} className="row" style={{ gap: 8, alignItems: 'center' }}>
-                  <span className="chip" style={{ minWidth: 0 }}>{t.name || '(unnamed timeline)'}</span>
-                  <div className="muted">{new Date(t.created_at).toLocaleString()}</div>
+                  <span className="chip" style={{ minWidth: 0 }}>{t.name}</span>
+                  <div className="muted">{t.t_start}–{t.t_end}h · {t.n_pulses} pulses</div>
                   <div style={{ flex: 1 }} />
-                  <input className="input" value={t.name} onChange={(e) => setTimelines((prev) => prev.map((x) => x.id === t.id ? { ...x, name: e.target.value } : x))} style={{ maxWidth: 220 }} />
-                  <button className="btn" onClick={() => setTimelines((prev) => prev.map((x) => x.id === t.id ? { ...x, name: (x.name || '').trim() || nextTimelineName() } : x))}>Save name</button>
-                  <button className="btn" onClick={() => setTimelines((prev) => prev.filter((x) => x.id !== t.id))}>Delete</button>
+                  <button className="btn" onClick={() => setSelectedTimelineId(t.id)}>Use</button>
                 </div>
               ))
             )}

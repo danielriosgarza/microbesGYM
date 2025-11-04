@@ -14,10 +14,10 @@ MicrobesGYM consists of two complementary components:
 * **`kinetic_model`** — a fast and flexible simulation engine for microbiome–metabolome systems.
   It supports pulse-based bioreactor experiments with environmental factors such as pH, temperature, and stirring, offering *fast*, *balanced*, and *accurate* integration modes with interactive visualization.
 
-* **`rl`** — a configurable, model-agnostic reinforcement learning framework that wraps any kinetic model as a Gymnasium environment.
+* **`rl`** — a configurable, model-agnostic reinforcement learning framework that wraps kinetic models as a Gymnasium environment.
   Targets, observations, rewards, and actions are defined through a single YAML/JSON configuration, and agents are trained via **Stable-Baselines3 (SB3)**.
 
-Together, these modules provide a complete environment for developing adaptive control strategies for microbiomes, from simulation to RL training.
+Together, these modules provide a comprehensive environment for developing adaptive control strategies for microbiomes, from simulation to RL training.
 
 ---
 

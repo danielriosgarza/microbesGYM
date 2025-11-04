@@ -11,6 +11,7 @@ import mg_api.routers.simulations as simulations
 import mg_api.routers.bacteria as bacteria
 import mg_api.routers.microbiomes as microbiomes
 import mg_api.routers.presets as presets
+import mg_api.routers.ph_drafts as ph_drafts
 
 
 def create_app() -> FastAPI:
@@ -39,6 +40,7 @@ def create_app() -> FastAPI:
     app.include_router(metabolites.router, prefix="/api")
     app.include_router(viz.router, prefix="/api")
     app.include_router(metabolomes.router, prefix="/api")
+    app.include_router(ph_drafts.router, prefix="/api")
     app.include_router(ph_functions.router, prefix="/api")
     app.include_router(environments.router, prefix="/api")
     app.include_router(pulses.router, prefix="/api")

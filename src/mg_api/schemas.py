@@ -97,6 +97,50 @@ class MetabolomeUpdate(BaseModel):
 
 
 # ---------------- pH Functions ---------------- #
+class PHDraftCreate(BaseModel):
+    name: str
+    baseValue: float = Field(7.0, ge=0.0, le=14.0)
+    weights: Dict[str, float] = Field(default_factory=dict)
+
+    @field_validator("name")
+    @classmethod
+    def validate_name(cls, v: str) -> str:
+        v = (v or "").strip()
+        if not v:
+            raise ValueError("name is required")
+        if len(v) > 128:
+            raise ValueError("name too long (max 128)")
+        return v
+
+
+class PHDraftOut(BaseModel):
+    id: str
+    name: str
+    baseValue: float
+    n_weights: int
+
+
+class PHDraftDetail(BaseModel):
+    id: str
+    name: str
+    baseValue: float
+    weights: Dict[str, float]
+
+
+class PHDraftRename(BaseModel):
+    name: str
+
+    @field_validator("name")
+    @classmethod
+    def validate_name(cls, v: str) -> str:
+        v = (v or "").strip()
+        if not v:
+            raise ValueError("name is required")
+        if len(v) > 128:
+            raise ValueError("name too long (max 128)")
+        return v
+
+
 class PHFunctionCreate(BaseModel):
     name: str
     metabolome_id: str

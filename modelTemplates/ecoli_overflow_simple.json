@@ -1,7 +1,7 @@
 {
   "version": "1.0.0",
   "metadata": {
-    "name": "MicrobiomeGym Model - E. coli Overflow (Template-Compliant)",
+    "name": "MicrobiomeGym Model - E. coli Overflow",
     "description": "Minimal E. coli overflow metabolism demo strictly following the template shape.",
     "author": "MicrobiomeGym Team",
     "created": "2025-09-08T04:07:15Z",

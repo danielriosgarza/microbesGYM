@@ -1,7 +1,7 @@
 {
   "version": "1.0.0",
   "metadata": {
-    "name": "Kombucha Fermentation (Boolean/Simple)",
+    "name": "Kombucha Fermentation",
     "description": "SCOBY with yeasts, acetic-acid bacteria, lactobacillus; boolean transitions; loader-safe feeding terms.",
     "author": "MicrobiomeGym Team",
     "created": "2025-09-07T19:23:52Z",
