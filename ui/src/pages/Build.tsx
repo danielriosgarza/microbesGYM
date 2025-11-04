@@ -1804,7 +1804,7 @@ export function Build() {
         
         {(!selectedRf || (selectedRf.type !== 'feedingTermNode' && selectedRf.type !== 'subpopulationNode' && selectedRf.type !== 'transitionNode' && selectedRf.type !== 'bacteriaNode')) && (
           <>
-          <h2>molecule</h2>
+          <h2>model inspector</h2>
           {!selected ? (
           <p className="muted">Select a node to edit its properties.</p>
         ) : (
