@@ -212,6 +212,8 @@ export function BuildCanvas({
   onEdgeCreate,
   onEdgeRemove,
   centerOnNodeId,
+  backgroundColor,
+  gridColor,
 }: {
   nodes: RFNode[];
   initialEdges?: Array<{ id: string; source: string; target: string }>;
@@ -220,6 +222,8 @@ export function BuildCanvas({
   onEdgeCreate?: (edge: { source: string; target: string }) => void;
   onEdgeRemove?: (edge: { source: string; target: string }) => void;
   centerOnNodeId?: string | null;
+  backgroundColor?: string;
+  gridColor?: string;
 }) {
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge[]>([]);
   // Sync incoming initial edges (e.g., when loading a preset)
@@ -305,7 +309,7 @@ export function BuildCanvas({
 
   return (
     <div
-      style={{ width: "100%", height: "clamp(520px, 80vh, 1100px)" }}
+      style={{ width: "100%", height: "clamp(520px, 80vh, 1100px)", background: backgroundColor || "transparent", borderRadius: 12, overflow: "hidden", border: "1px solid var(--border)" }}
       tabIndex={0}
       onKeyDown={(e) => {
         if (e.key === "Escape") onSelect?.(null);
@@ -334,7 +338,7 @@ export function BuildCanvas({
         fitView
         fitViewOptions={{ padding: 0.2 }}
       >
-        <Background variant="dots" gap={16} size={1} />
+        <Background variant="dots" gap={16} size={1} color={gridColor || "rgba(255,255,255,0.06)"} />
         <MiniMap pannable zoomable />
         <Controls position="bottom-right" />
       </ReactFlow>

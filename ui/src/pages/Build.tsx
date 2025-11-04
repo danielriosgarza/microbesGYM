@@ -2,6 +2,7 @@
 import { ApiStatus } from "../components/ApiStatus";
 import { BuildCanvas, type RFNode } from "../components/BuildCanvas";
 import { ReactFlowProvider } from "reactflow";
+import { PHInspector, FeedingTermInspector, SubpopulationInspector, TransitionInspector, BacteriaInspector, MetaboliteInspector } from "./build/inspectors";
 import {
   createMetabolite,
   listMetabolites,
@@ -86,6 +87,24 @@ export function Build() {
   const [nuking, setNuking] = React.useState(false);
   const [presets, setPresets] = React.useState<Array<{ id: string; name: string }>>([]);
   const [ph, setPh] = React.useState<{ id: string; baseValue: number; weights: Record<string, number>; saved?: boolean } | null>(null);
+  // Canvas color (user-selected). Default to white.
+  const [canvasBg, setCanvasBg] = React.useState<string>("#ffffff");
+  // Compute a grid color with contrast based on background brightness (hex only)
+  const gridFor = React.useCallback((bg: string): string => {
+    // If it's a gradient or non-hex value, fall back to a neutral dark grid
+    if (!bg || !bg.startsWith('#') || (bg.length !== 7 && bg.length !== 4)) {
+      return "rgba(0,0,0,0.12)";
+    }
+    const hex = bg.length === 4
+      ? `#${bg[1]}${bg[1]}${bg[2]}${bg[2]}${bg[3]}${bg[3]}`
+      : bg;
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    const brightness = (r * 299 + g * 587 + b * 114) / 1000; // 0-255
+    // Light background → dark grid; dark background → light grid
+    return brightness > 160 ? "rgba(0,0,0,0.14)" : "rgba(255,255,255,0.16)";
+  }, []);
   // Feeding terms (by RF node id)
   const [feedingTerms, setFeedingTerms] = React.useState<Record<string, {
     name: string;
@@ -1034,7 +1053,7 @@ export function Build() {
                 <button className="btn" style={{ width: '100%' }} onClick={addFeedingTermNode}>Feeding term</button>
                 <button className="btn" style={{ width: '100%' }} onClick={addSubpopulationNode}>Subpopulation</button>
                 <button className="btn" style={{ width: '100%' }} onClick={addTransitionNode}>Transition</button>
-                <button className="btn" style={{ width: '100%' }} onClick={addBacteriaNode}>Bacteria</button>
+                <button className="btn" style={{ width: '100%' }} onClick={addBacteriaNode}>Microbial Species</button>
               </div>
             )}
           </div>
@@ -1046,6 +1065,17 @@ export function Build() {
         <h2>Canvas</h2>
         <p className="muted">Drag nodes, click to edit in the inspector.</p>
         <div className="row" style={{ justifyContent: "flex-end" }}>
+          <label className="label" style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }} title="Canvas color">
+            <span className="muted">Canvas</span>
+            <input
+              type="color"
+              value={canvasBg}
+              onChange={(e) => setCanvasBg(e.target.value)}
+              className="input"
+              style={{ width: 44, height: 34, padding: 4 }}
+              aria-label="Canvas color"
+            />
+          </label>
           <button className="btn" onClick={clearAll} disabled={clearing || nodes.length === 0}>
             {clearing ? "Clearing..." : "Clear all"}
           </button>
@@ -1055,6 +1085,8 @@ export function Build() {
             nodes={rfNodes}
             initialEdges={initialEdges}
             centerOnNodeId={centerNodeId}
+            backgroundColor={canvasBg}
+            gridColor={gridFor(canvasBg)}
             onNodesUpdate={(rfNodes) => {
             // accept updates from React Flow (positions, selection flags)
               setRfNodes(rfNodes);
@@ -1185,722 +1217,61 @@ export function Build() {
       >
         <>
         {ph && selectedId === ph.id && (
-          <div className="form" style={{ marginBottom: 12 }}>
-            <h2>pH</h2>
-            <div className="form-row">
-              <label className="label" htmlFor="ph-base">Base value</label>
-              <div className="inline">
-                <input
-                  id="ph-base"
-                  type="number"
-                  min={0}
-                  max={14}
-                  step={0.1}
-                  className="input"
-                  value={ph.baseValue}
-                  onChange={(e) => {
-                    const v = Math.max(0, Math.min(14, Number(e.target.value)));
-                    setPh((prev) => prev ? { ...prev, baseValue: v, saved: false } : prev);
-                    setRfNodes((prev) => prev.map((n) => n.id === ph.id ? { ...n, data: { ...(n.data as any), baseValue: v } } : n));
-                  }}
-                />
-                <span className="unit">pH</span>
-              </div>
-              <div className="hint">0 to 14</div>
-            </div>
-
-            <div className="form-row">
-              <label className="label">Weights</label>
-              {Object.keys(ph.weights).length === 0 ? (
-                <div className="hint">Connect metabolites to the pH node to add weights.</div>
-              ) : (
-                <div style={{ display: 'grid', gap: 6 }}>
-                  {Object.entries(ph.weights).map(([name, w]) => (
-                    <div key={name} className="inline" style={{ gap: 6, alignItems: 'center' }}>
-                      <span className="chip" style={{ minWidth: 0 }}>{name}</span>
-                      <input
-                        type="number"
-                        className="input"
-                        step={0.1}
-                        value={w}
-                        onChange={(e) => {
-                          const v = Number(e.target.value);
-                          setPh((prev) => prev ? { ...prev, weights: { ...prev.weights, [name]: v }, saved: false } : prev);
-                        }}
-                      />
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div className="row" style={{ gap: 8, alignItems: 'center' }}>
-              <button
-                className="btn primary"
-                disabled={!!ph?.saved}
-                onClick={() => {
-                  if (!ph) return;
-                  // mark saved
-                  setPh({ ...ph, saved: true });
-                  // persist draft in localStorage list
-                  try {
-                    const raw = localStorage.getItem('mg-build-ph-drafts');
-                    const arr = raw ? JSON.parse(raw) as any[] : [];
-                    const draft = {
-                      id: `draft-${Date.now().toString(36)}-${Math.random().toString(36).slice(2,8)}`,
-                      name: '',
-                      baseValue: ph.baseValue,
-                      weights: ph.weights,
-                      createdAt: Date.now(),
-                    };
-                    localStorage.setItem('mg-build-ph-drafts', JSON.stringify([draft, ...arr]));
-                    window.dispatchEvent(new CustomEvent('ph:draftSaved'));
-                  } catch {}
-                }}
-              >
-                {ph?.saved ? 'Saved' : 'Save pH'}
-              </button>
-              <button
-                className="btn"
-                onClick={() => {
-                  if (!ph) return;
-                  setRfNodes((prev) => prev.filter((n) => n.id !== ph.id));
-                  setPh(null);
-                  if (selectedId === (ph && ph.id)) setSelectedId(null);
-                }}
-                type="button"
-              >
-                Delete pH node
-              </button>
-            </div>
-          </div>
+          <PHInspector
+            ph={ph}
+            selectedId={selectedId}
+            setSelectedId={setSelectedId}
+            setPh={setPh}
+            setRfNodes={setRfNodes}
+          />
         )}
         {selectedRf && selectedRf.type === 'feedingTermNode' && (
-          (() => {
-            const ftId = selectedRf.id;
-            const ft = feedingTerms[ftId] || { name: 'feeding', inputs: {}, outputs: {} };
-            // Ensure entry exists
-            if (!feedingTerms[ftId]) {
-              setFeedingTerms((prev) => ({ ...prev, [ftId]: ft }));
-            }
-            const metNameById = (id: string) => {
-              const match = nodes.find((n) => n.localId === id);
-              return match ? match.data.name : id;
-            };
-            return (
-              <div className="form">
-                <h2>Feeding term</h2>
-                <div className="form-row">
-                  <label className="label">Name</label>
-                  <input
-                    className="input"
-                    value={ft.name}
-                    onChange={(e) => {
-                      const name = e.target.value;
-                      setFeedingTerms((prev) => ({ ...prev, [ftId]: { ...ft, name } }));
-                      setRfNodes((prev) => prev.map((n) => n.id === ftId ? { ...n, data: { ...(n.data as any), name } } : n));
-                    }}
-                  />
-                </div>
-                <div className="form-row">
-                  <label className="label">Inputs (consumed)</label>
-                  {Object.keys(ft.inputs).length === 0 ? (
-                    <div className="hint">Connect metabolite → feeding term to add inputs.</div>
-                  ) : (
-                    <div style={{ display: 'grid', gap: 6 }}>
-                      {Object.entries(ft.inputs).map(([mid, vals]) => (
-                        <div key={mid} className="inline" style={{ gap: 8, alignItems: 'center' }}>
-                          <span className="chip" style={{ minWidth: 0 }}>{metNameById(mid)}</span>
-                          <input className="input" type="number" min={0} step={0.1} value={vals.yield}
-                            onChange={(e) => {
-                              const y = Math.max(0, Number(e.target.value));
-                              setFeedingTerms((prev) => ({ ...prev, [ftId]: { ...ft, inputs: { ...ft.inputs, [mid]: { ...vals, yield: y } } } }));
-                            }} style={{ width: 90 }} />
-                          <span className="unit">yield</span>
-                          <input className="input" type="number" min={0.0001} step={0.1} value={vals.monodK}
-                            onChange={(e) => {
-                              const k = Math.max(0.0001, Number(e.target.value));
-                              setFeedingTerms((prev) => ({ ...prev, [ftId]: { ...ft, inputs: { ...ft.inputs, [mid]: { ...vals, monodK: k } } } }));
-                            }} style={{ width: 90 }} />
-                          <span className="unit">Monod K</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                <div className="form-row">
-                  <label className="label">Outputs (produced)</label>
-                  {Object.keys(ft.outputs).length === 0 ? (
-                    <div className="hint">Connect feeding term → metabolite to add outputs.</div>
-                  ) : (
-                    <div style={{ display: 'grid', gap: 6 }}>
-                      {Object.entries(ft.outputs).map(([mid, vals]) => (
-                        <div key={mid} className="inline" style={{ gap: 8, alignItems: 'center' }}>
-                          <span className="chip" style={{ minWidth: 0 }}>{metNameById(mid)}</span>
-                          <input className="input" type="number" min={0} step={0.1} value={vals.yield}
-                            onChange={(e) => {
-                              const y = Math.max(0, Number(e.target.value));
-                              setFeedingTerms((prev) => ({ ...prev, [ftId]: { ...ft, outputs: { ...ft.outputs, [mid]: { yield: y } } } }));
-                            }} style={{ width: 90 }} />
-                          <span className="unit">yield</span>
-                          <span className="muted" style={{ marginLeft: 6 }}>(Monod K = 0)</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-            );
-          })()
+          <FeedingTermInspector
+            selectedRf={selectedRf}
+            nodes={nodes}
+            feedingTerms={feedingTerms}
+            setFeedingTerms={setFeedingTerms}
+            setRfNodes={setRfNodes}
+          />
         )}
         {selectedRf && selectedRf.type === 'subpopulationNode' && (
-          <div className="form">
-            <h2>Subpopulation</h2>
-            <div className="form-row">
-              <label className="label">Name</label>
-              <input
-                className="input"
-                value={(selectedRf.data as any).name || 'subpop'}
-                onChange={(e) => {
-                  const name = e.target.value;
-                  setRfNodes((prev) => prev.map((n) => n.id === selectedRf.id ? { ...n, data: { ...(n.data as any), name } } : n));
-                }}
-              />
-            </div>
-            <div className="form-row">
-              <label className="label">Initial Count</label>
-              <div className="inline">
-                <input
-                  type="number"
-                  min={0}
-                  step={0.001}
-                  className="input"
-                  value={(selectedRf.data as any).count ?? 0.003}
-                  onChange={(e) => {
-                    const count = Number(e.target.value);
-                    setRfNodes((prev) => prev.map((n) => n.id === selectedRf.id ? { ...n, data: { ...(n.data as any), count } } : n));
-                  }}
-                />
-                <span className="unit">cells/mL</span>
-              </div>
-            </div>
-            <div className="form-row">
-              <label className="label">μmax (max growth rate)</label>
-              <div className="inline">
-                <input
-                  type="number"
-                  min={0}
-                  step={0.01}
-                  className="input"
-                  value={(selectedRf.data as any).mumax ?? 0.5}
-                  onChange={(e) => {
-                    const mumax = Number(e.target.value);
-                    setRfNodes((prev) => prev.map((n) => n.id === selectedRf.id ? { ...n, data: { ...(n.data as any), mumax } } : n));
-                  }}
-                />
-                <span className="unit">h⁻¹</span>
-              </div>
-            </div>
-            <div className="form-row">
-              <label className="label">Optimal pH</label>
-              <div className="inline">
-                <input
-                  type="number"
-                  min={0}
-                  max={14}
-                  step={0.1}
-                  className="input"
-                  value={(selectedRf.data as any).pHopt ?? 7.0}
-                  onChange={(e) => {
-                    const pHopt = Number(e.target.value);
-                    setRfNodes((prev) => prev.map((n) => n.id === selectedRf.id ? { ...n, data: { ...(n.data as any), pHopt } } : n));
-                  }}
-                />
-                <span className="unit">pH</span>
-              </div>
-            </div>
-            <div className="form-row">
-              <label className="label">pH Sensitivity (left)</label>
-              <div className="inline">
-                <input
-                  type="number"
-                  min={0.1}
-                  step={0.1}
-                  className="input"
-                  value={(selectedRf.data as any).pH_sensitivity_left ?? 2.0}
-                  onChange={(e) => {
-                    const pH_sensitivity_left = Number(e.target.value);
-                    setRfNodes((prev) => prev.map((n) => n.id === selectedRf.id ? { ...n, data: { ...(n.data as any), pH_sensitivity_left } } : n));
-                  }}
-                />
-                <span className="unit">pH units</span>
-              </div>
-            </div>
-            <div className="form-row">
-              <label className="label">pH Sensitivity (right)</label>
-              <div className="inline">
-                <input
-                  type="number"
-                  min={0.1}
-                  step={0.1}
-                  className="input"
-                  value={(selectedRf.data as any).pH_sensitivity_right ?? 2.0}
-                  onChange={(e) => {
-                    const pH_sensitivity_right = Number(e.target.value);
-                    setRfNodes((prev) => prev.map((n) => n.id === selectedRf.id ? { ...n, data: { ...(n.data as any), pH_sensitivity_right } } : n));
-                  }}
-                />
-                <span className="unit">pH units</span>
-              </div>
-            </div>
-            <div className="form-row">
-              <label className="label">Optimal Temperature</label>
-              <div className="inline">
-                <input
-                  type="number"
-                  min={0}
-                  max={100}
-                  step={0.5}
-                  className="input"
-                  value={(selectedRf.data as any).Topt ?? 37.0}
-                  onChange={(e) => {
-                    const Topt = Number(e.target.value);
-                    setRfNodes((prev) => prev.map((n) => n.id === selectedRf.id ? { ...n, data: { ...(n.data as any), Topt } } : n));
-                  }}
-                />
-                <span className="unit">°C</span>
-              </div>
-            </div>
-            <div className="form-row">
-              <label className="label">Temp Sensitivity (left)</label>
-              <div className="inline">
-                <input
-                  type="number"
-                  min={0.1}
-                  step={0.1}
-                  className="input"
-                  value={(selectedRf.data as any).tempSensitivity_left ?? 5.0}
-                  onChange={(e) => {
-                    const tempSensitivity_left = Number(e.target.value);
-                    setRfNodes((prev) => prev.map((n) => n.id === selectedRf.id ? { ...n, data: { ...(n.data as any), tempSensitivity_left } } : n));
-                  }}
-                />
-                <span className="unit">°C</span>
-              </div>
-            </div>
-            <div className="form-row">
-              <label className="label">Temp Sensitivity (right)</label>
-              <div className="inline">
-                <input
-                  type="number"
-                  min={0.1}
-                  step={0.1}
-                  className="input"
-                  value={(selectedRf.data as any).tempSensitivity_right ?? 2.0}
-                  onChange={(e) => {
-                    const tempSensitivity_right = Number(e.target.value);
-                    setRfNodes((prev) => prev.map((n) => n.id === selectedRf.id ? { ...n, data: { ...(n.data as any), tempSensitivity_right } } : n));
-                  }}
-                />
-                <span className="unit">°C</span>
-              </div>
-            </div>
-            <div className="form-row">
-              <label className="label">State</label>
-              <select
-                className="input"
-                value={(selectedRf.data as any).state || 'active'}
-                onChange={(e) => {
-                  const state = e.target.value;
-                  setRfNodes((prev) => prev.map((n) => n.id === selectedRf.id ? { ...n, data: { ...(n.data as any), state } } : n));
-                }}
-              >
-                <option value="active">Active</option>
-                <option value="dormant">Dormant</option>
-                <option value="inactive">Inactive</option>
-                <option value="dead">Dead</option>
-              </select>
-            </div>
-            <div className="form-row">
-              <label className="label">Color</label>
-              <div className="inline grow">
-                <input
-                  type="color"
-                  className="input"
-                  style={{ width: 52, height: 34, padding: 4 }}
-                  value={(selectedRf.data as any).color || '#aaaaaa'}
-                  onChange={(e) => {
-                    const color = e.target.value;
-                    setRfNodes((prev) => prev.map((n) => n.id === selectedRf.id ? { ...n, data: { ...(n.data as any), color } } : n));
-                  }}
-                />
-                <input
-                  className="input"
-                  value={(selectedRf.data as any).color || '#aaaaaa'}
-                  onChange={(e) => {
-                    const color = e.target.value;
-                    setRfNodes((prev) => prev.map((n) => n.id === selectedRf.id ? { ...n, data: { ...(n.data as any), color } } : n));
-                  }}
-                  style={{ minWidth: 0 }}
-                />
-              </div>
-            </div>
-            <div className="row" style={{ gap: 8, alignItems: "center" }}>
-              <button className="btn" onClick={() => {
-                setRfNodes((prev) => prev.filter((n) => n.id !== selectedRf.id));
-                if (selectedId === selectedRf.id) setSelectedId(null);
-              }} type="button">
-                Delete
-              </button>
-            </div>
-          </div>
+          <SubpopulationInspector
+            selectedRf={selectedRf}
+            selectedId={selectedId}
+            setSelectedId={setSelectedId}
+            setRfNodes={setRfNodes}
+          />
         )}
         {selectedRf && selectedRf.type === 'transitionNode' && (
-          <div className="form">
-            <h2>Transition</h2>
-            <div className="form-row">
-              <label className="label">Rate</label>
-              <div className="inline">
-                <input
-                  type="number"
-                  min={0}
-                  step={0.01}
-                  className="input"
-                  value={(selectedRf.data as any).rate || 0.1}
-                  onChange={(e) => {
-                    const rate = Number(e.target.value);
-                    setRfNodes((prev) => prev.map((n) => n.id === selectedRf.id ? { ...n, data: { ...(n.data as any), rate } } : n));
-                  }}
-                />
-                <span className="unit">h⁻¹</span>
-              </div>
-            </div>
-            <div className="form-row">
-              <label className="label">Condition</label>
-              <textarea
-                className="input"
-                value={(selectedRf.data as any).condition || ''}
-                onChange={(e) => {
-                  const condition = e.target.value;
-                  setRfNodes((prev) => prev.map((n) => n.id === selectedRf.id ? { ...n, data: { ...(n.data as any), condition } } : n));
-                }}
-                rows={3}
-                placeholder="e.g., pH < 6.5, glucose > 10 mM"
-              />
-            </div>
-            <div className="row" style={{ gap: 8, alignItems: "center" }}>
-              <button className="btn" onClick={() => {
-                setRfNodes((prev) => prev.filter((n) => n.id !== selectedRf.id));
-                if (selectedId === selectedRf.id) setSelectedId(null);
-              }} type="button">
-                Delete
-              </button>
-            </div>
-          </div>
+          <TransitionInspector
+            selectedRf={selectedRf}
+            selectedId={selectedId}
+            setSelectedId={setSelectedId}
+            setRfNodes={setRfNodes}
+          />
         )}
         {selectedRf && selectedRf.type === 'bacteriaNode' && (
-          <div className="form">
-            <h2>Microbe</h2>
-            
-            {/* Validation function */}
-            {(() => {
-              const validateBacteriaNode = (): string[] => {
-                const errors: string[] = [];
-                
-                // Get subpopulations connected to this bacteria node
-                const subpopIds = edges.filter((e) => e.target === selectedRf.id)
-                  .map((e) => e.source)
-                  .filter((id) => (rfNodes.find((n) => n.id === id)?.type === 'subpopulationNode'));
-                
-                if (subpopIds.length === 0) {
-                  errors.push("Microbe node must have at least one connected subpopulation");
-                  return errors;
-                }
-                
-                // Check for duplicate subpopulation names
-                const subpopNames = subpopIds.map(sid => {
-                  const sn = rfNodes.find((n) => n.id === sid)!;
-                  return String((sn.data as any)?.name || sid);
-                });
-                const uniqueNames = new Set(subpopNames);
-                if (subpopNames.length !== uniqueNames.size) {
-                  errors.push("Subpopulation names must be unique within a species");
-                }
-                
-                // Validate each subpopulation
-                for (const sid of subpopIds) {
-                  const sn = rfNodes.find((n) => n.id === sid)!;
-                  const d = sn.data as any;
-                  const name = String(d.name || sid);
-                  
-                  // Check active subpopulation requirements
-                  const state = String(d.state || 'active');
-                  const mumax = Number(d.mumax || 0) || 0;
-                  
-                  if (state === 'active') {
-                    if (mumax <= 0) {
-                      errors.push(`Active subpopulation '${name}' must have positive mumax (current: ${mumax})`);
-                    }
-                    
-                    // Check if subpopulation has feeding terms
-                    const ftIds = edges
-                      .filter((e) => e.target === sid && (rfNodes.find((n) => n.id === e.source)?.type === 'feedingTermNode'))
-                      .map((e) => e.source);
-                    
-                    if (ftIds.length === 0) {
-                      errors.push(`Active subpopulation '${name}' must have at least one feeding term`);
-                    } else {
-                      // Validate feeding terms
-                      for (const ftId of ftIds) {
-                        const ftState = feedingTerms[ftId];
-                        if (ftState) {
-                          const inputs = ftState.inputs || {};
-                          const outputs = ftState.outputs || {};
-                          
-                          // Check if feeding term has any metabolites
-                          if (Object.keys(inputs).length === 0 && Object.keys(outputs).length === 0) {
-                            errors.push(`Feeding term for '${name}' must have at least one input or output metabolite`);
-                          }
-                          
-                          // Validate input metabolites (consumed)
-                          for (const [metId, v] of Object.entries(inputs)) {
-                            const y = Number((v as any).yield || 0);
-                            const K = Number((v as any).monodK || 0);
-                            
-                            if (!Number.isFinite(y) || y <= 0) {
-                              errors.push(`Input metabolite in '${name}' must have positive yield (current: ${y})`);
-                            }
-                            if (!Number.isFinite(K) || K <= 0) {
-                              errors.push(`Input metabolite in '${name}' must have positive Monod K (current: ${K})`);
-                            }
-                          }
-                          
-                          // Validate output metabolites (produced)
-                          for (const [metId, v] of Object.entries(outputs)) {
-                            const y = Number((v as any).yield || 0);
-                            if (!Number.isFinite(y) || y <= 0) {
-                              errors.push(`Output metabolite in '${name}' must have positive yield (current: ${y})`);
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                  
-                  // Validate numeric parameters
-                  const count = Number(d.count || 0);
-                  const pHopt = Number(d.pHopt || 7.0);
-                  const pH_sensitivity_left = Number(d.pH_sensitivity_left || 2.0);
-                  const pH_sensitivity_right = Number(d.pH_sensitivity_right || 2.0);
-                  const Topt = Number(d.Topt || 37.0);
-                  const tempSensitivity_left = Number(d.tempSensitivity_left || 5.0);
-                  const tempSensitivity_right = Number(d.tempSensitivity_right || 2.0);
-                  
-                  if (count < 0) {
-                    errors.push(`Subpopulation '${name}' count cannot be negative (current: ${count})`);
-                  }
-                  if (pHopt <= 0) {
-                    errors.push(`Subpopulation '${name}' pHopt must be positive (current: ${pHopt})`);
-                  }
-                  if (pH_sensitivity_left <= 0) {
-                    errors.push(`Subpopulation '${name}' pH_sensitivity_left must be positive (current: ${pH_sensitivity_left})`);
-                  }
-                  if (pH_sensitivity_right <= 0) {
-                    errors.push(`Subpopulation '${name}' pH_sensitivity_right must be positive (current: ${pH_sensitivity_right})`);
-                  }
-                  if (Topt <= 0) {
-                    errors.push(`Subpopulation '${name}' Topt must be positive (current: ${Topt})`);
-                  }
-                  if (tempSensitivity_left <= 0) {
-                    errors.push(`Subpopulation '${name}' tempSensitivity_left must be positive (current: ${tempSensitivity_left})`);
-                  }
-                  if (tempSensitivity_right <= 0) {
-                    errors.push(`Subpopulation '${name}' tempSensitivity_right must be positive (current: ${tempSensitivity_right})`);
-                  }
-                }
-                
-                                 // Validate connections
-                 const transitions = rfNodes.filter((n) => n.type === 'transitionNode');
-                 for (const tn of transitions) {
-                   const incoming = edges.find((e) => e.target === tn.id && (rfNodes.find((n) => n.id === e.source)?.type === 'subpopulationNode'));
-                   const outgoing = edges.find((e) => e.source === tn.id && (rfNodes.find((n) => n.id === e.target)?.type === 'subpopulationNode'));
-                   
-                   if (incoming && outgoing) {
-                     const srcName = subpopIds.includes(incoming.source) ? String((rfNodes.find((n) => n.id === incoming.source)?.data as any)?.name || incoming.source) : null;
-                     const tgtName = subpopIds.includes(outgoing.target) ? String((rfNodes.find((n) => n.id === outgoing.target)?.data as any)?.name || outgoing.target) : null;
-                     
-                     if (srcName && tgtName) {
-                       const rate = Number((tn.data as any)?.rate || 0);
-                       if (rate < 0) {
-                         errors.push(`Transition rate from '${srcName}' to '${tgtName}' cannot be negative (current: ${rate})`);
-                       }
-                     }
-                   }
-                 }
-                
-                return errors;
-              };
-              
-              const validationErrors = validateBacteriaNode();
-              return validationErrors.length > 0 ? (
-                <div className="form-row">
-                  <div className="hint error" style={{ marginBottom: 16 }}>
-                    <strong>Validation Errors:</strong>
-                    <ul style={{ margin: '8px 0 0 0', paddingLeft: '20px' }}>
-                      {validationErrors.map((error, index) => (
-                        <li key={index}>{error}</li>
-                      ))}
-                    </ul>
-                  </div>
-                </div>
-              ) : null;
-            })()}
-            
-            <div className="form-row">
-              <label className="label">Species</label>
-              <input
-                className="input"
-                value={(selectedRf.data as any).species || 'species'}
-                onChange={(e) => {
-                  const species = e.target.value;
-                  setRfNodes((prev) => prev.map((n) => n.id === selectedRf.id ? { ...n, data: { ...(n.data as any), species } } : n));
-                }}
-              />
-            </div>
-            <div className="form-row">
-              <label className="label">Color</label>
-              <div className="inline grow">
-                <input
-                  type="color"
-                  className="input"
-                  style={{ width: 52, height: 34, padding: 4 }}
-                  value={(selectedRf.data as any).color || '#54f542'}
-                  onChange={(e) => {
-                    const color = e.target.value;
-                    setRfNodes((prev) => prev.map((n) => n.id === selectedRf.id ? { ...n, data: { ...(n.data as any), color } } : n));
-                  }}
-                />
-                <input
-                  className="input"
-                  value={(selectedRf.data as any).color || '#54f542'}
-                  onChange={(e) => {
-                    const color = e.target.value;
-                    setRfNodes((prev) => prev.map((n) => n.id === selectedRf.id ? { ...n, data: { ...(n.data as any), color } } : n));
-                  }}
-                  style={{ minWidth: 0 }}
-                />
-              </div>
-            </div>
-            <div className="row" style={{ gap: 8, alignItems: "center" }}>
-              <button className="btn" onClick={() => {
-                setRfNodes((prev) => prev.filter((n) => n.id !== selectedRf.id));
-                if (selectedId === selectedRf.id) setSelectedId(null);
-              }} type="button">
-                Delete
-              </button>
-            </div>
-          </div>
+          <BacteriaInspector
+            selectedRf={selectedRf}
+            selectedId={selectedId}
+            setSelectedId={setSelectedId}
+            setRfNodes={setRfNodes}
+            rfNodes={rfNodes}
+            edges={edges}
+            feedingTerms={feedingTerms}
+          />
         )}
         
         {(!selectedRf || (selectedRf.type !== 'feedingTermNode' && selectedRf.type !== 'subpopulationNode' && selectedRf.type !== 'transitionNode' && selectedRf.type !== 'bacteriaNode')) && (
-          <>
-          <h2>model inspector</h2>
-          {!selected ? (
-          <p className="muted">Select a node to edit its properties.</p>
-        ) : (
-          <div className="form">
-            <div className="form-row">
-              <label className="label" htmlFor="name">Name</label>
-              <input
-                id="name"
-                className={`input${errors.name ? " invalid" : ""}`}
-                value={selected.data.name}
-                onChange={(e) => updateSelected({ name: e.target.value })}
-              />
-              {errors.name ? <div className="hint error">{errors.name}</div> : <div className="hint">Unique within model</div>}
-            </div>
-
-            <div className="form-row">
-              <label className="label" htmlFor="conc">Concentration</label>
-              <div className="inline">
-                <input
-                  id="conc"
-                  type="number"
-                  min={0}
-                  step={0.1}
-                  className={`input${errors.concentration ? " invalid" : ""}`}
-                  value={selected.data.concentration}
-                  onChange={(e) => updateSelected({ concentration: Number(e.target.value) })}
-                />
-                <span className="unit">mM</span>
-              </div>
-              {errors.concentration ? <div className="hint error">{errors.concentration}</div> : <div className="hint">Non-negative</div>}
-            </div>
-
-            <div className="form-row">
-              <label className="label">Color</label>
-              <div className="inline grow">
-                <input
-                  type="color"
-                  className="input"
-                  style={{ width: 52, height: 34, padding: 4 }}
-                  value={selected.data.color}
-                  onChange={(e) => updateSelected({ color: e.target.value })}
-                />
-                <input
-                  className="input"
-                  value={selected.data.color}
-                  onChange={(e) => updateSelected({ color: e.target.value })}
-                  style={{ minWidth: 0 }}
-                />
-              </div>
-              <div className="swatches">
-                {["#22d3ee","#a78bfa","#34d399","#fbbf24","#f87171"].map((c) => (
-                  <button key={c} className="swatch" style={{ background: c }} onClick={() => updateSelected({ color: c })} aria-label={`Set color ${c}`} />
-                ))}
-              </div>
-            </div>
-
-            <div className="form-row">
-              <label className="label">Formula</label>
-              <FormulaEditor
-                value={selected.data.formula}
-                onChange={(f) => updateSelected({ formula: f })}
-              />
-              {errors.formula ? <div className="hint error">{errors.formula}</div> : <div className="hint">Integer element counts</div>}
-            </div>
-
-            <div className="form-row">
-              <label className="label" htmlFor="desc">Description</label>
-              <textarea
-                id="desc"
-                className="input"
-                value={selected.data.description}
-                onChange={(e) => updateSelected({ description: e.target.value })}
-                rows={3}
-              />
-            </div>
-
-            <div className="row" style={{ gap: 8, alignItems: "center" }}>
-              <button className="btn primary" onClick={saveSelected} type="button" disabled={true} style={{ display: 'none' }}>
-                {saving ? "Savingâ€¦" : selected.saved ? "Save again" : "Save"}
-              </button>
-              <button className="btn" onClick={deleteSelected} type="button" disabled={saving}>
-                Delete
-              </button>
-              {(() => {
-                const ls = selected.lastSaved;
-                const d = selected.data;
-                const dirty = !ls || ls.name !== d.name || ls.color !== d.color || ls.concentration !== d.concentration ||
-                  ["C","H","O","N","S","P"].some((k) => (ls?.formula as any)?.[k] !== (d.formula as any)[k]) || (ls?.description || "") !== (d.description || "");
-                if (dirty) return <span className="hint">Unsaved changes</span>;
-                if (savedAt) return <span className="hint">Saved</span>;
-                return null;
-              })()}
-            </div>
-          </div>
-          )}
-          </>
+          <MetaboliteInspector
+            selected={selected}
+            errors={errors}
+            saving={saving}
+            savedAt={savedAt}
+            updateSelected={updateSelected}
+            saveSelected={saveSelected}
+            deleteSelected={deleteSelected}
+          />
         )}
         </>
       </div>

@@ -26,6 +26,15 @@
   --logo-font-size: 20px;
   --logo-pad-y: 10px;
   --logo-pad-x: 16px;
+  
+  /* UI scale tokens */
+  --base-font-size: 17px;          /* global body font size */
+  --tab-font-size: 18px;           /* tabs: Build, Simulation, Plots, Training, Policies */
+  --panel-h2-font-size: 24px;      /* primary section headers inside pages */
+  --panel-h3-font-size: 18px;      /* secondary headers inside pages */
+  --label-font-size: 14px;         /* inspector labels */
+  --hint-font-size: 12.5px;        /* helper text */
+  --unit-font-size: 13px;          /* inline unit badges */
 }
 
 /* Base */
@@ -41,6 +50,7 @@ body {
     linear-gradient(180deg, var(--bg) 0%, #070d1a 100%);
   color: var(--text);
   font-family: var(--font);
+  font-size: var(--base-font-size);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -161,6 +171,7 @@ button.btn[title="Delete ALL saved objects"] {
   border-radius: 999px;
   cursor: pointer;
   transition: background .2s ease, border-color .2s, color .2s, box-shadow .2s ease;
+  font-size: var(--tab-font-size);
 }
 .tab[aria-selected="true"], .tab.active {
   background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
@@ -173,6 +184,9 @@ button.btn[title="Delete ALL saved objects"] {
 /* Panels */
 main { padding: var(--space-lg) 0 var(--space-lg); flex: 1 0 auto; min-height: 0; }
 .panel { animation: fadeIn .18s ease; min-height: 100%; }
+/* Increase headers within each page/panel */
+.panel h2 { font-size: var(--panel-h2-font-size); }
+.panel h3 { font-size: var(--panel-h3-font-size); }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
 
 /* Cards & Grid */
@@ -256,7 +270,7 @@ main { padding: var(--space-lg) 0 var(--space-lg); flex: 1 0 auto; min-height: 0
 /* --- Forms (Inspector) --- */
 .form { display: grid; gap: 12px; }
 .form-row { display: grid; gap: 6px; }
-.label { font-size: 12px; color: var(--muted); }
+.label { font-size: var(--label-font-size); color: var(--muted); }
 .input {
   background: transparent;
   color: var(--text);
@@ -267,7 +281,7 @@ main { padding: var(--space-lg) 0 var(--space-lg); flex: 1 0 auto; min-height: 0
 }
 .input:focus { border-color: var(--primary); box-shadow: var(--glow); }
 .input.invalid { border-color: var(--danger); }
-.hint { font-size: 11px; color: var(--muted); }
+.hint { font-size: var(--hint-font-size); color: var(--muted); }
 .hint.error { color: var(--danger); }
 .inline { display: flex; align-items: center; gap: 8px; width: 100%; }
 .inline.grow > .input { flex: 1 1 auto; }
@@ -279,7 +293,7 @@ main { padding: var(--space-lg) 0 var(--space-lg); flex: 1 0 auto; min-height: 0
 @media (max-width: 700px) {
   .formula-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
-.unit { font-size: 12px; color: var(--muted); }
+.unit { font-size: var(--unit-font-size); color: var(--muted); }
 .swatches { display: flex; gap: 6px; flex-wrap: wrap; }
 .swatch {
   width: 20px; height: 20px; border-radius: 6px; border: 1px solid var(--border);
