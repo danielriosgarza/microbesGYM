@@ -45,3 +45,13 @@ Thumbs.db
 .env
 .env.*
 
+# UI (Vite/React) artifacts
+ui/node_modules/
+ui/dist/
+ui/.vite/
+ui/.next/
+ui/.nuxt/
+ui/.svelte-kit/
+ui/.cache/
+ui/tsconfig.tsbuildinfo
+
