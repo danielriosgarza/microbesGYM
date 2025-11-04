@@ -975,10 +975,10 @@ export function Build() {
         <div className="row space-between center" style={{ position: 'relative' }}>
           <ApiStatus />
           <div className="row" style={{ gap: 8, alignItems: 'center' }}>
-            <button className="btn" onClick={deleteAllSaved} type="button" title="Delete ALL saved objects" disabled={nuking}>
+            <button className="btn" onClick={deleteAllSaved} type="button" title="Delete ALL saved objects" disabled={nuking} style={{ fontSize: 16 }}>
               {nuking ? 'Deletingâ€¦' : 'Delete all'}
             </button>
-            <button className="btn ghost" onClick={handleExportJson} type="button" title="Export model as JSON">
+            <button className="btn ghost" onClick={handleExportJson} type="button" title="Export model as JSON" style={{ fontSize: 16 }}>
               Export JSON
             </button>
             
@@ -997,6 +997,7 @@ export function Build() {
               type="button"
               title="Save all molecules and send to Simulation"
               disabled={savingMets}
+              style={{ fontSize: 16 }}
             >
               {savingMets ? 'Saving molecules...' : 'Save molecules'}
             </button>
@@ -1024,7 +1025,7 @@ export function Build() {
               type="button"
               title="Save pH as draft (metabolome-agnostic)"
               disabled={!ph || !(Number.isFinite(ph.baseValue) && ph.baseValue >= 0 && ph.baseValue <= 14)}
-              style={{ marginLeft: 8 }}
+              style={{ marginLeft: 8, fontSize: 16 }}
             >
               Save pH
             </button>
@@ -1033,7 +1034,7 @@ export function Build() {
               onClick={saveAllBacteria}
               type="button"
               title="Save all microbes"
-              style={{ marginLeft: 8 }}
+              style={{ marginLeft: 8, fontSize: 16 }}
             >
               Save microbes
             </button>
