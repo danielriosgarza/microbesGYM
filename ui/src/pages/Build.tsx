@@ -2,7 +2,7 @@
 import { ApiStatus } from "../components/ApiStatus";
 import { BuildCanvas, type RFNode } from "../components/BuildCanvas";
 import { ReactFlowProvider } from "reactflow";
-import { PHInspector, FeedingTermInspector, SubpopulationInspector, TransitionInspector, BacteriaInspector, MetaboliteInspector } from "./build/inspectors";
+import { PHInspector, FeedingTermInspector, SubpopulationInspector, TransitionInspector, BacteriaInspector, MetaboliteInspector } from "./build_tab/inspectors";
 import {
   createMetabolite,
   listMetabolites,
